@@ -279,7 +279,9 @@ function widgets.journalEntries(pageName)
           linesOnPage = {}
         end
         extractedLines = extractLines(item)
-        table.insert(linesOnPage, extractedLines)
+        for _, line in ipairs(extractedLines) do
+          table.insert(linesOnPage, line)
+        end
         markdown = markdown .. mentionTemplate({
           ref = item.ref,
           snippet = buildSnippet(extractedLines)
