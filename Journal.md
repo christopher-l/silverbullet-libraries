@@ -268,26 +268,15 @@ function widgets.journalEntries(pageName)
   ]]
   if #journalMentions > 0 then
     local markdown = "# Journal Entries\n"
-    local page = ""
-    local linesOnPage = {}
     for _, item in ipairs(journalMentions) do
-      if item.page == page and includeRef(linesOnPage, item.ref) then
-        -- continue
-      else
-        if page != item.page then
-          page = item.page
-          linesOnPage = {}
-        end
-        extractedLines = extractLines(item)
-        for _, line in ipairs(extractedLines) do
-          table.insert(linesOnPage, line)
-        end
-        markdown = markdown .. mentionTemplate({
-          ref = item.ref,
-          snippet = buildSnippet(extractedLines)
-        })
+      -- TODO: skip entries that are already included in the context of other entries. Take care to show the top-most entry in this case.
+      extractedLines = extractLines(item)
+      markdown = markdown .. mentionTemplate({
+        ref = item.ref,
+        snippet = buildSnippet(extractedLines)
+      })
       end
-    end
+
     return widget.new {
       markdown = markdown,
     }
