@@ -267,16 +267,30 @@ function widgets.journalEntries(pageName)
     order by page desc
   ]]
   if #journalMentions > 0 then
+    local pinnedEntries = query[[
+      from journalMentions
+      where _.snippet:match("#pinned")
+    ]]
+    local otherEntries = query[[
+      from journalMentions
+      where not _.snippet:match("#pinned")
+    ]]
     local markdown = "# Journal Entries\n"
-    for _, item in ipairs(journalMentions) do
+    for _, item in ipairs(pinnedEntries) do
+      extractedLines = extractLines(item)
+      markdown = markdown .. mentionTemplate({
+        ref = item.ref,
+        snippet = buildSnippet(extractedLines)
+      })
+    end
+    for _, item in ipairs(otherEntries) do
       -- TODO: skip entries that are already included in the context of other entries. Take care to show the top-most entry in this case.
       extractedLines = extractLines(item)
       markdown = markdown .. mentionTemplate({
         ref = item.ref,
         snippet = buildSnippet(extractedLines)
       })
-      end
-
+    end
     return widget.new {
       markdown = markdown,
     }
