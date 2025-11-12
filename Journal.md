@@ -93,170 +93,62 @@ Include a more complete excerpt for links on journal pages than the usual snippe
 -- priority: 10
 widgets = widgets or {}
 
----Returns the position part of a reference.
----@param ref string
----@return integer
-local function refPos(ref)
-  local posString = ref:match("@(%d+)$")
-  return tonumber(posString)
-end
-
----@param line string
-local function isItem(line)
-  if line:match("^%s*[%-%*]%s") ~= nil then
-    return true
-  elseif line:match("^%s*%d%.%s") ~= nil then
-    return true
-  else
-    return false
-  end
-end
-
----@param line string
-local function isEmpty(line)
-  return string.len(string.trim(line)) == 0
-end
-
----@param line string
----@return integer
-local function indentLevel(line)
-  match = line:match("^(%s*)")
-  return match:len()
-end
-
----Extracts an item with all ancestor and all sub items.
----Expects refLineIndex to indicate a line with an item.
----@param lines { line: string, startIndex: integer }[]
----@param refLineIndex integer
----@return { line: string, startIndex: integer }[]
-local function extractItem(lines, refLineIndex)
-  local idx = refLineIndex
-  local level = indentLevel(lines[idx].line)
-  -- Include referenced item.
-  local extractedLines = { lines[refLineIndex] }
-  -- Include ancestor items.
-  while level > 0 and idx > 1 do
-    idx = idx - 1
-    if isEmpty(lines[idx].line) then
-      -- continue
-    elseif isItem(lines[idx].line)
-      and indentLevel(lines[idx].line) < level then
-      level = indentLevel(lines[idx].line)
-      table.insert(extractedLines, 1, lines[idx])
-    elseif not isItem(lines[idx].line)
-      and indentLevel(lines[idx].line) == 0 then
-      break
-    end
-  end
-  -- Include sub items.
-  idx = refLineIndex
-  level = indentLevel(lines[idx].line)
-  while idx < #lines do
-    idx = idx + 1
-    if isEmpty(lines[idx].line) then
-      -- continue
-    elseif indentLevel(lines[idx].line) > level then
-      table.insert(extractedLines, lines[idx])
-    else
-      break
-    end
-  end
-  return extractedLines
-end
-
----Extracts a paragraph from and to an empty line.
----Expects refLineIndex to indicate a line within a paragraph.
----@param lines { line: string, startIndex: integer }[]
----@param refLineIndex integer
----@return { line: string, startIndex: integer }[]
-local function extractParagraph(lines, refLineIndex)
-  local idx = refLineIndex
-  -- Include referenced line.
-  local extractedLines = { lines[refLineIndex] }
-  -- Include lines above.
-  while idx > 1 do
-    idx = idx - 1
-    if isEmpty(lines[idx].line) then
-      break
-    elseif isItem(lines[idx].line) then
-      break
-    else
-      table.insert(extractedLines, 1, lines[idx])
-    end
-  end
-  -- Include lines below.
-  idx = refLineIndex
-  while idx < #lines do
-    idx = idx + 1
-    if isEmpty(lines[idx].line) then
-      break
-    elseif isItem(lines[idx].line) then
-      break
-    else
-      table.insert(extractedLines, lines[idx])
-    end
-  end
-  return extractedLines
-end
-
----@param item { ref: string, page: string }
----@return { line: string, startIndex: integer }[]
-local function extractLines(item)
-  local pos = refPos(item.ref)
-  local page = space.readPage(item.page)
-  local lines = {}
-  local lineChars = 0
-  local refLineIndex = -1
-  for line in page:gmatch("([^\n]*)\n?") do
-    table.insert(lines, {
-      line = line,
-      startIndex = lineChars,
-    })
-    lineChars = lineChars + string.len(line) + 1
-    if refLineIndex < 0 and lineChars > pos then
-      refLineIndex = #lines
-    end
-  end
-  local refLine = lines[refLineIndex].line
-  if isItem(refLine) then
-    return extractItem(lines, refLineIndex)
-  else
-    return extractParagraph(lines, refLineIndex)
-  end
-end
-
----Returns true if any of the given lines includes the given ref.
----Expects the given ref and lines to belong to the same page.
----@param lines { line: string, startIndex: integer }[]
----@param ref string
----@return boolean
-local function includeRef(lines, ref)
-  local pos = refPos(ref)
-  for _, line in ipairs(lines) do
-    local endIndex = line.startIndex + string.len(line.line)
-    if line.startIndex <= pos and endIndex >= pos then
-      return true
-    end
-  end
-  return false
-end
-
----Builds the snippet string from an array of line objects.
----@param lines { line: string, startIndex: integer }[]
----@return string
-local function buildSnippet(lines)
-  local snippet = ""
-  for _, line in ipairs(lines) do
-    snippet = snippet .. line.line .. "\n"
-  end
-  return string.trimEnd(snippet)
-end
-
 local mentionTemplate = template.new [==[
 **[[${_.ref}]]**
-${_.snippet}
+${_.section}
 
 ]==]
+
+---Returns true if the link is within the position bounds of the given tree item.
+local function includesLink(item, link)
+  return item.from <= link.pos and item.to >= link.pos
+end
+
+---Returns the item of "children" that the given link lies in.
+local function findChild(children, link)
+  for _, item in ipairs(children) do
+    if includesLink(item, link) then
+      return item
+    end
+  end
+end
+
+---Calls stripTree on all children and returns the resulting array.
+local function stripChildren(children, link)
+  local strippedChildren = {}
+  for i, item in ipairs(children) do
+    table.insert(strippedChildren, stripTree(item, link))
+  end
+  return strippedChildren
+end
+
+---Strips a markdown parse tree of all items that are not relevant for the given link.
+local function stripTree(tree, link)
+  local children = tree.children
+  if children == nil then
+    return tree
+  elseif tree.type == "Document" or tree.type == "BulletList" then
+    local child = findChild(children, link)
+    if child ~= nil then
+      children = { child }
+    end
+  end
+  strippedChildren = stripChildren(children, link)
+  return {
+    type = tree.type,
+    children = strippedChildren,
+    from = strippedChildren[0].from,
+    to = strippedChildren[#strippedChildren].to
+  }
+end
+
+---Extracts the section of the page containing the given link that the link is relevant for, i. e. all sub items of the item containing the link and all its ancestor items.
+local function extractLinkSection(link)
+  local page = space.readPage(link.page)
+  local tree = markdown.parseMarkdown(page)
+  local strippedTree = stripTree(tree, link)
+  return markdown.renderParseTree(strippedTree)
+end
 
 function widgets.journalEntries(pageName)
   pageName = pageName or editor.getCurrentPage()
@@ -277,18 +169,16 @@ function widgets.journalEntries(pageName)
     ]]
     local markdown = "# Journal Entries\n"
     for _, item in ipairs(pinnedEntries) do
-      extractedLines = extractLines(item)
       markdown = markdown .. mentionTemplate({
         ref = item.ref,
-        snippet = buildSnippet(extractedLines)
+        section = extractLinkSection(link)
       })
     end
     for _, item in ipairs(otherEntries) do
       -- TODO: skip entries that are already included in the context of other entries. Take care to show the top-most entry in this case.
-      extractedLines = extractLines(item)
       markdown = markdown .. mentionTemplate({
         ref = item.ref,
-        snippet = buildSnippet(extractedLines)
+        section = extractLinkSection(link)
       })
     end
     return widget.new {
