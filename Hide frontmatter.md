@@ -1,13 +1,23 @@
 #meta/library
 
-Hides the frontmatter of all pages until clicked.
+Hides the frontmatter of specific pages.
 
 Via https://community.silverbullet.md/t/hiding-frontmatter/830/7
+
+# Usage
+
+Add the following to the frontmatter of a page:
+
+```yaml
+pageDecoration:
+  cssClasses:
+    - no-frontmatter
+```
 
 # Implementation
 
 ```space-style
-.sb-frontmatter.sb-line-frontmatter-outside:has(+ .sb-frontmatter) ~ .sb-frontmatter {
-    display:none
+.no-frontmatter .sb-frontmatter {
+    display: none;
 }
 ```
