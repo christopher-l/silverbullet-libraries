@@ -247,11 +247,17 @@ end
 
 Define a function to display all undone tasks on journal pages.
 
+Tasks on future journal pages are displayed one week before the page date.
+
 ```space-lua
+local DAY_SECONDS = 60 * 60 * 24
+
 function journalTasks()
   local tasks = query[[
     from index.tag "task"
-    where not _.done and _.page:startsWith("Journals/")
+    where not _.done
+      and _.page:startsWith("Journals/")
+      and _.page <= "Journals/"..os.date(date.date_format, os.time() - (7 * DAY_SECONDS))
     order by page desc
   ]]
   local md = ""
