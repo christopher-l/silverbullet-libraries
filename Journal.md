@@ -257,7 +257,7 @@ function journalTasks()
     from index.tag "task"
     where not _.done
       and _.page:startsWith("Journals/")
-      and _.page <= "Journals/"..os.date(date.date_format, os.time() - (7 * DAY_SECONDS))
+      and _.page <= "Journals/"..os.date(date.date_format, os.time() + (7 * DAY_SECONDS))
     order by page desc
   ]]
   local md = ""
