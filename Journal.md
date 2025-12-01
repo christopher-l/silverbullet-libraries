@@ -262,10 +262,9 @@ function journalTasks()
   ]]
   local md = ""
   if #tasks > 0 then
-    return "# Tasks\n"
-       .. template.each(tasks, templates.taskItem)
+    return template.each(tasks, templates.taskItem)
   else
-    return ""
+    return "_No items_"
   end
 end
 ```
