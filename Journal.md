@@ -77,6 +77,7 @@ function journal(n)
     query [[
       from index.tag 'page'
       where name:startsWith("Journals/")
+        and _.name <= "Journals/"..os.date(date.date_format)
       order by _.name desc
       limit n
     ]],
@@ -137,7 +138,7 @@ local function stripTree(tree, link)
   return {
     type = tree.type,
     children = strippedChildren,
-    from = strippedChildren[0].from,
+    from = strippedChildren[1].from,
     to = strippedChildren[#strippedChildren].to
   }
 end
